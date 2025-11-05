@@ -1,0 +1,31 @@
+ticker,asset_name,asset_class,transaction_type,quantity,price,date,currency,exchange,sector,fees,notes,accounted
+AVDL,Avadel,Equity,BUY,30,17.0,6/30/2024,USD,USA,TODO,0,,True
+CVS,CVS,Equity,BUY,12,74.89,6/30/2024,USD,USA,TODO,0,,True
+RPRX,Royalty Pharma,Equity,BUY,18,27.56,6/30/2024,USD,USA,TODO,0,,True
+TMO,Thermo Fisher,Equity,BUY,2,571.45,6/30/2024,USD,USA,TODO,0,,True
+UNH,UnitedHealth,Equity,BUY,5,444.12,6/30/2024,USD,USA,TODO,0,,True
+ABBV,AbbVie,Equity,BUY,19,80.26,6/30/2024,USD,USA,TODO,0,,True
+BLCO,Bausch + Lomb,Equity,BUY,50,16.91,6/30/2024,USD,USA,TODO,0,,True
+BMY,Bristol-Myers Squibb,Equity,BUY,25,60.79,6/30/2024,USD,USA,TODO,0,,True
+CI,Cigna,Equity,BUY,6,319.29,6/30/2024,USD,USA,TODO,0,,True
+JNJ,Johnson & Johnson,Equity,BUY,20,135.79,6/30/2024,USD,USA,TODO,0,,True
+MRK,Merck,Equity,BUY,27,76.94,6/30/2024,USD,USA,TODO,0,,True
+NVS,Novartis,Equity,BUY,17,75.66,6/30/2024,USD,USA,TODO,0,,True
+PFE,Pfizer,Equity,BUY,61,39.92,6/30/2024,USD,USA,TODO,0,,True
+REGN,Regeneron,Equity,BUY,3,575.24,6/30/2024,USD,USA,TODO,0,,True
+SDZ.SW,Sandoz,Equity,BUY,3,20.87,6/30/2024,USD,SW,TODO,0,,True
+NBIX,Neurocrine,Equity,BUY,8,123.02,11/4/2024,USD,USA,TODO,0,,True
+VRTX,Vertex,Equity,BUY,8,211.09,6/30/2024,USD,USA,TODO,0,,True
+ABT,Abbott,Equity,BUY,33,94.32,6/30/2024,USD,USA,TODO,0,,True
+A,Agilent,Equity,BUY,10,142.97,6/30/2024,USD,USA,TODO,0,,True
+DHR,Danaher,Equity,BUY,5,206.36,6/30/2024,USD,USA,TODO,0,,True
+ISRG,Intuitive Surgical,Equity,BUY,8,184.54,6/30/2024,USD,USA,TODO,0,,True
+MCK,McKesson,Equity,BUY,6,453.01,6/30/2024,USD,USA,TODO,0,,True
+MDT,Medtronic,Equity,BUY,20,113.04,6/30/2024,USD,USA,TODO,0,,True
+VLTO,Veralto,Equity,BUY,1,82.04,6/30/2024,USD,USA,TODO,0,,True
+LNTH,Lantheus,Equity,BUY,9,116.86,10/24/2024,USD,USA,TODO,0,,True
+RMD,Resmed,Equity,BUY,5,235.55,11/14/2024,USD,USA,TODO,0,,True
+AMLX,Amylyx,Equity,BUY,22,25.05,6/30/2024,USD,USA,TODO,0,,True
+AXSM,Axsome,Equity,BUY,30,49.56,6/30/2024,USD,USA,TODO,0,,True
+MDGL,Madrigal,Equity,BUY,11,127.46,6/30/2024,USD,USA,TODO,0,,True
+KRYS,Krystal Biotech,Equity,BUY,5,188.12,6/30/2024,USD,USA,TODO,0,,True

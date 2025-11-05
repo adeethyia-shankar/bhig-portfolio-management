@@ -1,0 +1,6 @@
+import numpy as np
+
+## Constants
+BUSINESS_DAYS_PER_YEAR = 252
+SQRT_252 = np.sqrt(BUSINESS_DAYS_PER_YEAR)
+DAYS_PER_YEAR = 365.25

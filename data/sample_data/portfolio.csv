@@ -1,0 +1,3 @@
+ticker,asset_name,asset_class,exchange,cost,current price,quantity,pnl,currency,sector
+AAPL,Apple Inc.,Equity,NASDAQ,150.1,212,10.0,619.0,USD,Technology
+,Cash,,,,3499.0,,,,
