@@ -68,20 +68,54 @@ FUTURE usage example (Future Enhancements - NOT YET IMPLEMENTED):
     For this backtester to do what is done in manual_backtest.py's implementation, what
     are the values of x, pos, bt, st? 
 
+    ANSWER:
+    Looking at manual_backtest.py's main execution:
+    - x = 10000 (starting_cash=10000)
+    - pos = 1000 (position_size=1000)
+    - bt = 0.05 (buy when momentum > 5%)
+    - st = -0.03 (sell when momentum < -3%)
+
 """
 
 
 import pandas as pd
 import numpy as np
-from dataloader import load_clean_data
-# Import the manual backtest functions you already wrote! 
-# (please change these function names change depending on your implementation)
+from pathlib import Path
+
+# Import functions from manual_backtest.py
+# Note: Adjust these imports based on your actual function names
 from manual_backtest import (
     task1_calculate_signals,
     task2_generate_signals, 
     task3_simulate_trades,
     task4_calculate_returns
 )
+
+# ==========================================================
+# Helper function to load clean data
+# ----------------------------------------------------------
+
+def load_clean_data():
+    """
+    Load the cleaned price data from data/clean_prices.csv
+    
+    Returns:
+        pd.DataFrame: Cleaned price data with columns [date, ticker, close, volume]
+    """
+    data_dir = Path("data")
+    clean_data_path = data_dir / "clean_prices.csv"
+    
+    if not clean_data_path.exists():
+        raise FileNotFoundError(
+            f"❌ {clean_data_path} not found. Run fetch_yfinance.py first to generate clean data."
+        )
+    
+    df = pd.read_csv(clean_data_path)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["ticker", "date"])
+    
+    return df
+
 
 # ==========================================================
 # Backtester Class
@@ -111,17 +145,27 @@ class Backtester:
             position_size (float): $ amount to BUY each time (e.g., $1000 per BUY trade)
                                    NOTE: SELL always sells ALL shares (no position_size for sells)
         """
-        # TODO: load clean price data using load_clean_data()
-        # TODO: store as self.data
-        # TODO: store ticker, starting_cash, position_size as self.ticker, self.starting_cash, self.position_size
-        # TODO: initialize self.params = {} (will be set later with set_params)
+        # Load clean price data
+        self.data = load_clean_data()  # make sure your dataloader returns full DataFrame
+        
+        # Store settings
+        self.ticker = ticker
+        self.starting_cash = starting_cash
+        self.position_size = position_size
+        self.params = {}  # will be set later with set_params
+        
+        # Validate ticker exists in data
+        available_tickers = self.data['ticker'].unique()
+        if ticker not in available_tickers:
+            raise ValueError(
+                f"❌ Ticker '{ticker}' not found in data. "
+                f"Available tickers: {', '.join(available_tickers)}"
+            )
         
         print(f"🔧 Backtester initialized for {ticker}")
         print(f"   • starting cash: ${starting_cash:,.2f}")
         print(f"   • position size per BUY: ${position_size:,.2f}")
         print(f"   • SELL behavior: sells ALL shares at once")
-        
-        pass  # REMOVE this once you add your code
     
     def set_params(self, params):
         """
@@ -136,16 +180,27 @@ class Backtester:
                     'sell_threshold': -0.03
                 }
         """
-        # TODO: store params as instance variable
-        # TODO: validate that required keys exist (signal_type, buy_threshold, sell_threshold)
-        # TODO: print confirmation of parameters set
+        # Store parameters
+        self.params = params
         
+        # Validate required keys exist
+        required = ['signal_type', 'lookback', 'buy_threshold', 'sell_threshold']
+        for key in required:
+            if key not in params:
+                raise ValueError(f"Missing required parameter: {key}")
+        
+        # Validate parameter values
+        if params['lookback'] <= 0:
+            raise ValueError("lookback must be positive")
+        if params['buy_threshold'] <= params['sell_threshold']:
+            raise ValueError("buy_threshold must be greater than sell_threshold")
+        
+        # Print confirmation
         print(f"\n📋 Parameters set:")
         print(f"   • signal: {params.get('signal_type', 'NOT SET')}")
+        print(f"   • lookback: {params.get('lookback', 'NOT SET')}")
         print(f"   • buy threshold: {params.get('buy_threshold', 'NOT SET')}")
         print(f"   • sell threshold: {params.get('sell_threshold', 'NOT SET')}")
-        
-        pass  # REMOVE this once you add your code
     
     def backtest(self, signal=None): 
         """
@@ -166,49 +221,94 @@ class Backtester:
         Returns:
             dict: Backtest results including final_value, return_pct, num_trades, trades_df
         """
+        # Validate that parameters have been set
+        if not self.params:
+            raise ValueError(
+                "❌ Parameters not set. Call set_params() before running backtest."
+            )
+        
         print("\n" + "="*60)
         print(f"RUNNING BACKTEST: {self.ticker}")
         print("="*60)
         
-        # TODO: Step 1 - Calculate signals
-        #       Use your task1 function to calculate momentum/signals
+        # Step 1 - Calculate signals
         print("\n🎯 Step 1: Calculate signals")
-        # YOUR CODE HERE, under a function (not just driver code)
+        stock_df = task1_calculate_signals(self.data, ticker=self.ticker)
         
-        # TODO: Step 2 - Generate BUY/SELL/HOLD labels 
-        #       Use your task2 function to create trading signals
+        # Check if we have enough data after calculating signals
+        if stock_df['momentum_20'].notna().sum() < 10:
+            print(f"⚠️ Warning: Only {stock_df['momentum_20'].notna().sum()} valid momentum values.")
+            print("   Consider using more historical data or a shorter lookback period.")
+        
+        # Step 2 - Generate BUY/SELL/HOLD labels with custom thresholds
         print("\n🎯 Step 2: Generate BUY/SELL/HOLD signals")
-        # YOUR CODE HERE
         
-        # TODO: Step 3 - Simulate trades
-        #       Use your task3 function to execute trades
+        # Override task2 signals with our custom thresholds from params
+        buy_th = self.params['buy_threshold']
+        sell_th = self.params['sell_threshold']
+        
+        # Initialize all as HOLD
+        stock_df['signal'] = 'HOLD'
+        
+        # Apply BUY signal when momentum exceeds buy threshold
+        stock_df.loc[stock_df['momentum_20'] > buy_th, 'signal'] = 'BUY'
+        
+        # Apply SELL signal when momentum falls below sell threshold
+        stock_df.loc[stock_df['momentum_20'] < sell_th, 'signal'] = 'SELL'
+        
+        # Count and display signals
+        signal_counts = stock_df['signal'].value_counts()
+        print(f"   Signal distribution:")
+        for sig, count in signal_counts.items():
+            print(f"      {sig}: {count} days")
+        
+        # Step 3 - Simulate trades
         print("\n🎯 Step 3: Simulate trades")
-        # YOUR CODE HERE
+        trades = task3_simulate_trades(
+            stock_df,
+            starting_cash=self.starting_cash,
+            position_size=self.position_size
+        )
         
-        # TODO: Step 4 - Calculate returns
-        #       Use your task4 function to compute performance
+        # Validate trades
+        if len(trades) == 0:
+            print("⚠️ Warning: No trades generated. Strategy may be too conservative.")
+        
+        # Step 4 - Calculate returns
         print("\n🎯 Step 4: Calculate returns")
-        # YOUR CODE HERE
+        results = task4_calculate_returns(
+            trades, 
+            stock_df, 
+            starting_cash=self.starting_cash
+        )
+        
+        # Add additional useful information to results
+        results['ticker'] = self.ticker
+        results['trades_df'] = pd.DataFrame(trades) if trades else pd.DataFrame()
+        results['params'] = self.params.copy()
+        results['starting_cash'] = self.starting_cash
+        results['position_size'] = self.position_size
+        
+        # Calculate additional metrics
+        if len(trades) > 0:
+            trades_df = pd.DataFrame(trades)
+            buy_trades = trades_df[trades_df['action'] == 'BUY']
+            sell_trades = trades_df[trades_df['action'] == 'SELL']
+            
+            results['num_buys'] = len(buy_trades)
+            results['num_sells'] = len(sell_trades)
+            
+            # Average trade metrics
+            if len(buy_trades) > 0:
+                results['avg_buy_price'] = buy_trades['price'].mean()
+            if len(sell_trades) > 0:
+                results['avg_sell_price'] = sell_trades['price'].mean()
+        else:
+            results['num_buys'] = 0
+            results['num_sells'] = 0
         
         print("\n✅ Backtest complete!")
-        
-        # TODO: Build and return results dictionary
-        #       Include: final_value, return_pct, num_trades, trades_df, etc.
-        return {}  # REPLACE with actual results dictionary
-    
-
-
-    # NOTE: This is all just a guide. Keep in mind the goal is just so the backtester
-    # can run the full backtest given parameters, not inputted like one stock at a time
-    # and position size at a time. all should work in this format: 
-
-    # backtester = Backtester(ticker='any ticker', starting_cash= x, position_size=y)
-    # backtester.set_params(params={'buy_threshold': 0.05, 'sell_threshold': -0.03})
-    
-    # Run backtest and get results
-    results = backtester.backtest()
-    print(results)
-    # backtester.set_params(params={'buy_threshold': 0.05, 'sell_threshold': -0.03})
+        return results
 
 
 # ==========================================================
@@ -218,6 +318,13 @@ class Backtester:
 if __name__ == "__main__":
     print("🎯 Week 4: Backtester Class")
     print("📚 Goal: Build a reusable backtesting tool\n")
+    
+    # ==========================================================
+    # Test 1: AAPL with default manual_backtest.py parameters
+    # ==========================================================
+    print("\n" + "="*60)
+    print("TEST 1: AAPL (matching manual_backtest.py)")
+    print("="*60)
     
     # Step 1: Create backtester instance
     print("Step 1: Initialize backtester")
@@ -231,7 +338,6 @@ if __name__ == "__main__":
         'buy_threshold': 0.05,    # buy when momentum > 5%
         'sell_threshold': -0.03   # sell when momentum < -3%
     }
-
     backtester.set_params(params=params_dict)
     
     # Step 3: Run backtest
@@ -242,42 +348,118 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("RESULTS")
     print("="*60)
-    print(results)
+    print(f"Ticker: {results['ticker']}")
+    print(f"Final Value: ${results['final_value']:,.2f}")
+    print(f"Strategy Return: {results['strategy_return']:.2%}")
+    print(f"Buy & Hold Return: {results['buy_hold_return']:.2%}")
+    print(f"Excess Return: {results['excess_return']:+.2%}")
+    print(f"Number of Trades: {results['num_trades']}")
+    print(f"  - Buys: {results['num_buys']}")
+    print(f"  - Sells: {results['num_sells']}")
     
-    print("\n💡 Next steps:")
-    print("   1. Complete the TODOs in each method")
-    print("   2. Test with different parameters")
-    print("   3. Add support for more signal types (z-score, volatility, etc.)")
-    print("   4. Add visualization methods")
-    print("   5. Compare multiple strategies side-by-side")
+    if results['num_buys'] > 0:
+        print(f"Average Buy Price: ${results['avg_buy_price']:.2f}")
+    if results['num_sells'] > 0:
+        print(f"Average Sell Price: ${results['avg_sell_price']:.2f}")
     
     # ==========================================================
-    # TODO: Test your backtester with different parameters to see if it works!
+    # Test 2: MSFT with more conservative strategy
     # ==========================================================
-    print("\n" + "="*60)
-    print("🎓 YOUR TURN: Test on a different stock!")
+    print("\n\n" + "="*60)
+    print("TEST 2: MSFT (conservative strategy)")
     print("="*60)
     
-    # TODO: Create your own backtester for NVDA (NVIDIA)
-    # Example:
-    #   nvda_backtester = Backtester(ticker='NVDA', starting_cash=20000, position_size=2000)
-    #   nvda_backtester.set_params(params={'buy_threshold': 0.03, 'sell_threshold': -0.02})
-    #   nvda_results = nvda_backtester.backtest()
-    #   print(nvda_results)
+    msft_bt = Backtester(ticker='MSFT', starting_cash=15000, position_size=1500)
+    msft_bt.set_params({
+        'signal_type': 'momentum', 
+        'lookback': 20, 
+        'buy_threshold': 0.07,    # Higher threshold = fewer buys
+        'sell_threshold': -0.05   # Lower threshold = fewer sells
+    })
+    msft_results = msft_bt.backtest()
     
-    # TODO: Try MSFT with different thresholds 
-    # Example:
-    #   msft_backtester = Backtester(ticker='MSFT', starting_cash=15000, position_size=1500)
-    #   msft_backtester.set_params(params={'buy_threshold': 0.07, 'sell_threshold': -0.05})
-    #   msft_results = msft_backtester.backtest()
-    #   print(msft_results)
+    print("\n" + "="*60)
+    print("RESULTS")
+    print("="*60)
+    print(f"Ticker: {msft_results['ticker']}")
+    print(f"Final Value: ${msft_results['final_value']:,.2f}")
+    print(f"Strategy Return: {msft_results['strategy_return']:.2%}")
+    print(f"Buy & Hold Return: {msft_results['buy_hold_return']:.2%}")
+    print(f"Excess Return: {msft_results['excess_return']:+.2%}")
+    print(f"Number of Trades: {msft_results['num_trades']}")
     
-    # TODO: Compare which stock/strategy performed best. 
-    # The code above uncommented should 
-    # all work if you implemented the Backtester class correctly so far! 
+    # ==========================================================
+    # Test 3: META with aggressive strategy
+    # ==========================================================
+    print("\n\n" + "="*60)
+    print("TEST 3: META (aggressive strategy)")
+    print("="*60)
     
-    print("\n💡 Tips for experimentation:")
+    meta_bt = Backtester(ticker='META', starting_cash=20000, position_size=2000)
+    meta_bt.set_params({
+        'signal_type': 'momentum', 
+        'lookback': 20, 
+        'buy_threshold': 0.03,    # Lower threshold = more buys
+        'sell_threshold': -0.02   # Higher threshold = more sells
+    })
+    meta_results = meta_bt.backtest()
+    
+    print("\n" + "="*60)
+    print("RESULTS")
+    print("="*60)
+    print(f"Ticker: {meta_results['ticker']}")
+    print(f"Final Value: ${meta_results['final_value']:,.2f}")
+    print(f"Strategy Return: {meta_results['strategy_return']:.2%}")
+    print(f"Buy & Hold Return: {meta_results['buy_hold_return']:.2%}")
+    print(f"Excess Return: {meta_results['excess_return']:+.2%}")
+    print(f"Number of Trades: {meta_results['num_trades']}")
+    
+    # ==========================================================
+    # Summary comparison
+    # ==========================================================
+    print("\n\n" + "="*60)
+    print("SUMMARY COMPARISON")
+    print("="*60)
+    
+    comparison = pd.DataFrame([
+        {
+            'Ticker': results['ticker'],
+            'Strategy': 'Default',
+            'Final Value': results['final_value'],
+            'Return': results['strategy_return'],
+            'vs B&H': results['excess_return'],
+            'Trades': results['num_trades']
+        },
+        {
+            'Ticker': msft_results['ticker'],
+            'Strategy': 'Conservative',
+            'Final Value': msft_results['final_value'],
+            'Return': msft_results['strategy_return'],
+            'vs B&H': msft_results['excess_return'],
+            'Trades': msft_results['num_trades']
+        },
+        {
+            'Ticker': meta_results['ticker'],
+            'Strategy': 'Aggressive',
+            'Final Value': meta_results['final_value'],
+            'Return': meta_results['strategy_return'],
+            'vs B&H': meta_results['excess_return'],
+            'Trades': meta_results['num_trades']
+        }
+    ])
+    
+    print(comparison.to_string(index=False))
+    
+    # ==========================================================
+    # Tips for experimentation
+    # ==========================================================
+    print("\n\n💡 Tips for experimentation:")
     print("   • Aggressive: buy_threshold=0.03, sell_threshold=-0.02 (more trades)")
     print("   • Conservative: buy_threshold=0.07, sell_threshold=-0.05 (fewer trades)")
     print("   • Try different position sizes: $500, $2000, $5000 per trade")
-    print("   • Available stocks: AAPL, MSFT, META, BLK, PYPL, SHOP, NVDA")
+    print("   • Available stocks: AAPL, MSFT, META, BLK, PYPL, SHOP")
+    print("\n📊 Next steps:")
+    print("   1. Test different thresholds to optimize returns")
+    print("   2. Compare multiple stocks with same strategy")
+    print("   3. Analyze which market conditions favor your strategy")
+    print("   4. Consider transaction costs (not yet implemented)")

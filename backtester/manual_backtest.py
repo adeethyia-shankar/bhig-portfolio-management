@@ -16,7 +16,7 @@
 # ==========================================================
 # Let's pretend we're testing our strategy on AAPL in early 2020
 # We'll walk through EXACTLY what happens day by day
-# 
+#
 # STRATEGY:
 # Simple Momentum Strategy for ONE stock (AAPL)
 # --------------------------------------------------
@@ -37,7 +37,7 @@
 # Price 20 days ago: $70.00
 # Momentum = (75 - 70) / 70 = +7.1%
 # Signal: BUY (momentum > 5%)
-# 
+#
 # ACTION: Buy AAPL!
 # • Shares to buy: $1,000 / $75 = 13.33 shares
 # • Cost: 13.33 × $75 = $999.75
@@ -127,10 +127,9 @@
 # THINK ABOUT IT:
 # • What "slippage" and "transaction costs" mean
 # • Why some strategies look good but lose money
-# • Do certain signals work for all stocks or some? If not what stocks can be grouped? 
+# • Do certain signals work for all stocks or some? If not what stocks can be grouped?
 
 # ==========================================================
-
 
 
 # ==========================================================
@@ -143,7 +142,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 # ==========================================================
-# 0. Loaded cleaned data 
+# 0. Loaded cleaned data
 # ----------------------------------------------------------
 data_dir = Path("data")
 clean_data_path = data_dir / "clean_prices.csv"
@@ -182,68 +181,192 @@ print("📊 Loaded cleaned price data for manual backtesting...\n")
 
 def task1_calculate_signals(df, ticker="AAPL"):
     """Task 1: Calculate momentum signal for one stock"""
-    # TODO: filter df for just the ticker (e.g., AAPL)
-    # TODO: calculate 20-day momentum using .pct_change(periods=20)
-    # TODO: create column 'momentum_20' with the values
-    # TODO: print first 30 rows to see how momentum changes over time
-    # HINT: momentum = (price_today / price_20_days_ago) - 1
-    pass
+    # 1. Filter for just the one stock
+    stock_df = df[df["ticker"] == ticker].copy()
+
+    # Make sure it's sorted by date (oldest -> newest)
+    stock_df = stock_df.sort_values("date")
+
+    # 2. Calculate 20-day momentum using pct_change
+    # HINT from comments: momentum = (price_today / price_20_days_ago) - 1
+    # Using .pct_change(20) does exactly that for 'close'
+    stock_df["momentum_20"] = stock_df["close"].pct_change(periods=20)
+
+    # 3. Print first 30 rows to inspect
+    print(f"\n📈 Task 1: 20-day momentum for {ticker}")
+    print(stock_df.head(30)[["date", "ticker", "close", "momentum_20"]])
+
+    return stock_df
+
 
 def task2_generate_signals(stock_df):
     """Task 2: Generate buy/sell signals based on momentum"""
-    # TODO: create 'signal' column with values: 'BUY', 'SELL', or 'HOLD'
-    # TODO: BUY signal when momentum_20 > 0.05 (5%)
-    # TODO: SELL signal when momentum_20 < -0.03 (-3%)
-    # TODO: otherwise HOLD (no action)
-    # TODO: print dates where BUY or SELL signals appear
-    # EXAMPLE: 2020-03-15: BUY (momentum = 8.2%)
-    pass
+    stock_df = stock_df.copy()
+
+    # Default to HOLD
+    stock_df["signal"] = "HOLD"
+
+    # BUY when momentum_20 > 5%
+    stock_df.loc[stock_df["momentum_20"] > 0.05, "signal"] = "BUY"
+
+    # SELL when momentum_20 < -3%
+    stock_df.loc[stock_df["momentum_20"] < -0.03, "signal"] = "SELL"
+
+    # Print where BUY or SELL happens
+    print("\n🎯 Task 2: BUY/SELL signal dates")
+    signal_rows = stock_df[stock_df["signal"].isin(["BUY", "SELL"])]
+    for _, row in signal_rows.iterrows():
+        date_str = row["date"].strftime("%Y-%m-%d")
+        print(f"  {date_str}: {row['signal']} (momentum = {row['momentum_20']:.2%})")
+
+    return stock_df
+
 
 def task3_simulate_trades(stock_df, starting_cash=10000, position_size=1000):
     """Task 3: Manually execute trades based on signals"""
-    # TODO: start with variables: cash = 10000, shares_owned = 0, trades = []
-    # TODO: loop through each row of the dataframe
-    # TODO: when signal = 'BUY' and have enough cash:
-    #       - calculate shares to buy: position_size / current_price
-    #       - subtract cost from cash
-    #       - add shares to shares_owned
-    #       - record trade: {date, action='BUY', price, shares, cash_remaining}
-    # TODO: when signal = 'SELL' and shares_owned > 0:
-    #       - calculate sale value: shares_owned * current_price
-    #       - add to cash
-    #       - set shares_owned = 0
-    #       - record trade: {date, action='SELL', price, shares, cash_after}
-    # TODO: return list of all trades
-    # NOTE: This simulates you actually placing orders!
-    pass
+    stock_df = stock_df.copy()
+
+    cash = starting_cash
+    shares_owned = 0.0
+    trades = []
+
+    print(f"\n💸 Task 3: Simulating trades (start cash=${starting_cash:,.2f})")
+
+    # Iterate through each day in order
+    for _, row in stock_df.iterrows():
+        price = row["close"]
+        signal = row["signal"]
+        date = row["date"]
+
+        # BUY: spend up to position_size, but not more cash than we have
+        if signal == "BUY" and cash > price:
+            # integer number of shares
+            shares_to_buy = position_size // price
+            shares_to_buy = int(shares_to_buy)
+
+            if shares_to_buy > 0:
+                cost = shares_to_buy * price
+                # cap cost by available cash
+                if cost > cash:
+                    shares_to_buy = int(cash // price)
+                    cost = shares_to_buy * price
+
+                if shares_to_buy > 0:
+                    cash -= cost
+                    shares_owned += shares_to_buy
+
+                    trades.append({
+                        "date": date,
+                        "action": "BUY",
+                        "price": price,
+                        "shares": shares_to_buy,
+                        "cash_after": cash,
+                        "shares_after": shares_owned,
+                    })
+
+        # SELL: sell all shares
+        elif signal == "SELL" and shares_owned > 0:
+            shares_to_sell = shares_owned
+            proceeds = shares_to_sell * price
+            cash += proceeds
+            shares_owned = 0.0
+
+            trades.append({
+                "date": date,
+                "action": "SELL",
+                "price": price,
+                "shares": shares_to_sell,
+                "cash_after": cash,
+                "shares_after": shares_owned,
+            })
+
+    print(f"  ➜ Completed {len(trades)} trades")
+    return trades
+
 
 def task4_calculate_returns(trades, stock_df, starting_cash=10000):
     """Task 4: Calculate profit/loss and compare to buy-and-hold"""
-    # TODO: calculate final portfolio value:
-    #       final_value = current_cash + (shares_owned * final_price)
-    # TODO: calculate total return: (final_value - starting_cash) / starting_cash
-    # TODO: calculate buy-and-hold return for comparison:
-    #       buy_and_hold = buy stock on day 1, hold until end
-    #       shares = starting_cash / first_price
-    #       final_value = shares * final_price
-    #       return = (final_value - starting_cash) / starting_cash
-    # TODO: print comparison:
-    #       Strategy return: +15.2%
-    #       Buy-and-hold return: +23.4%
-    #       Strategy won/lost by: -8.2%
-    # TODO: print number of trades executed
-    pass
+    stock_df = stock_df.sort_values("date").copy()
+    first_price = stock_df["close"].iloc[0]
+    final_price = stock_df["close"].iloc[-1]
+
+    # Reconstruct final cash and shares from trades
+    cash = starting_cash
+    shares_owned = 0.0
+
+    for tr in trades:
+        if tr["action"] == "BUY":
+            cost = tr["shares"] * tr["price"]
+            cash -= cost
+            shares_owned += tr["shares"]
+        elif tr["action"] == "SELL":
+            proceeds = tr["shares"] * tr["price"]
+            cash += proceeds
+            shares_owned -= tr["shares"]
+
+    final_value = cash + shares_owned * final_price
+    strategy_return = (final_value - starting_cash) / starting_cash
+
+    # Buy-and-hold benchmark
+    bh_shares = starting_cash / first_price
+    bh_final_value = bh_shares * final_price
+    bh_return = (bh_final_value - starting_cash) / starting_cash
+
+    diff = strategy_return - bh_return
+
+    print("\n📊 Task 4: Return comparison")
+    print(f"   Strategy final value: ${final_value:,.2f}")
+    print(f"   Strategy return:      {strategy_return:.2%}")
+    print(f"   Buy & hold final:     ${bh_final_value:,.2f}")
+    print(f"   Buy & hold return:    {bh_return:.2%}")
+    print(f"   Strategy vs B&H:      {diff:+.2%}")
+    print(f"   Number of trades:     {len(trades)}")
+
+    # Optionally return metrics if you want to reuse later
+    return {
+        "final_value": final_value,
+        "strategy_return": strategy_return,
+        "buy_hold_return": bh_return,
+        "excess_return": diff,
+        "num_trades": len(trades),
+    }
 
 def task5_visualize_trades(stock_df, trades):
     """Task 5: Plot stock price with buy/sell markers"""
-    # TODO: create figure with price chart
-    # TODO: plot stock price over time as line chart
-    # TODO: add green markers (^) at BUY trade dates
-    # TODO: add red markers (v) at SELL trade dates
-    # TODO: add legend showing what markers mean
-    # TODO: save to data/plots/manual_backtest.png
-    # VISUAL IMPACT: You'll SEE where you bought and sold!
-    pass
+    stock_df = stock_df.sort_values("date").copy()
+
+    plt.figure(figsize=(10, 5))
+
+    # Plot price
+    plt.plot(stock_df["date"], stock_df["close"], label="Price", linewidth=1.5)
+
+    # Extract trade markers
+    buy_dates = [tr["date"] for tr in trades if tr["action"] == "BUY"]
+    buy_prices = [tr["price"] for tr in trades if tr["action"] == "BUY"]
+    sell_dates = [tr["date"] for tr in trades if tr["action"] == "SELL"]
+    sell_prices = [tr["price"] for tr in trades if tr["action"] == "SELL"]
+
+    # Add buy markers (green ^) and sell markers (red v)
+    if buy_dates:
+        plt.scatter(buy_dates, buy_prices, marker="^", color="green", label="BUY", zorder=3)
+    if sell_dates:
+        plt.scatter(sell_dates, sell_prices, marker="v", color="red", label="SELL", zorder=3)
+
+    plt.title("Manual Backtest: Price with Buy/Sell Trades")
+    plt.xlabel("Date")
+    plt.ylabel("Close Price")
+    plt.legend()
+    plt.grid(alpha=0.3)
+
+    plots_dir = data_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+    out_path = plots_dir / "manual_backtest.png"
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+
+    print(f"\n📉 Task 5: Plot saved to {out_path}")
+
 
 # ==========================================================
 # Bonus Task (Optional): Test Multiple Thresholds
@@ -259,9 +382,9 @@ def bonus_test_thresholds():
     # TODO: print which threshold combination works best
     # INSIGHT: Small changes in thresholds = differences in returns
 
-    
     # feel free to try other stocks besides AAPL too!
     pass
+
 
 # ==========================================================
 # Main Execution
@@ -270,14 +393,14 @@ if __name__ == "__main__":
     print("🎯 Week 3: Manual Backtesting - Test Your Strategy By Hand")
     print("📚 Goal: See if a momentum strategy actually makes money")
     print("💡 You'll track every trade manually to understand the process\n")
-    
+
     print("📝 Strategy to test:")
     print("   • Stock: AAPL")
     print("   • BUY when momentum > 5%")
     print("   • SELL when momentum < -3%")
     print("   • Starting capital: $10,000")
     print("   • Position size: $1,000 per trade\n")
-    
+
     print("📝 Complete these 5 tasks:")
     print("   1. Calculate Momentum Signal")
     print("   2. Generate Buy/Sell Signals")
@@ -286,12 +409,11 @@ if __name__ == "__main__":
     print("   5. Visualize Trades (chart with markers)\n")
 
     # TODO: uncomment as you complete each task
-    # stock_df = task1_calculate_signals(df, ticker="AAPL")
-    # stock_df = task2_generate_signals(stock_df)
-    # trades = task3_simulate_trades(stock_df, starting_cash=10000, position_size=1000)
-    # task4_calculate_returns(trades, stock_df, starting_cash=10000)
-    # task5_visualize_trades(stock_df, trades)
-    # 
+    stock_df = task1_calculate_signals(df, ticker="AAPL")
+    stock_df = task2_generate_signals(stock_df)
+    trades = task3_simulate_trades(stock_df, starting_cash=10000, position_size=1000)
+    task4_calculate_returns(trades, stock_df, starting_cash=10000)
+    task5_visualize_trades(stock_df, trades)
     # BONUS:
     # bonus_test_thresholds()
 
